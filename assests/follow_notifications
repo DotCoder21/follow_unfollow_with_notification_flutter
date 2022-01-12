@@ -1,0 +1,199 @@
+
+
+              ====================================================
+============== DOCUMENTATIONS FOR FOLLOW & UNFOLLOW NOTIFICATIONS ==============                                                ======================
+              =====================================================
+TODO//step:1
+
+Retrive the users data from firebase with stream builders,
+
+//Stream builder for single data(for login user):
+
+StreamBuilder<DocumentSnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('registeredUser')
+                    .doc(FirebaseAuth.instance.currentUser!.uid)
+                    .snapshots(),
+                builder: (context, snapshot) {
+
+                  return Column();
+
+
+//Stream builder for multiple data(for all user):
+
+StreamBuilder<QuerySnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('users')
+                                .snapshots(),
+                            builder: (context, secSnapshot) {
+                              if (!secSnapshot.hasData) {
+                                return const CircularProgressIndicator();
+                              }
+
+                              return ListView.builder();
+
+TODO//STEP : 2
+Create an empty arraylist in the document of the user
+
+ FirebaseFirestore.instance.collection('users').doc(uid).set({
+
+ =====> 'followId': [],
+        }),
+
+ TODO//STEP : 3
+ CREATE A FOLLOWlIST AND ASSIGN IT TO THE EMPTY ARRAYLIST:
+ stream: FirebaseFirestore.instance
+                     .collection('registeredUser')
+                     .doc(FirebaseAuth.instance.currentUser!.uid)
+                     .snapshots(),
+                 builder: (context, snapshot) {
+             ====> List followList = snapshot.data!.get('followId');
+                   return Column();
+
+ TODO//STEP : 4
+ CREATE BUTTONS FOR FOLLOW AND UNFOLLOW WITH THE CONDITION followList.contains(docId);
+
+
+ followList.contains(docId)? TextButton(
+                                        onPressed: () {},
+                                        child: const Text(
+                                       'unfollow',
+                                        style: TextStyle(
+                                        color: Colors.black,
+                                        fontSize: 20),
+                                         ),
+                                          )
+                                         : TextButton(
+                                         onPressed: () {},
+                                         child: const Text('follow',
+                                         style: TextStyle(
+                                         color: Colors.black,
+                                         fontSize: 20)),
+                                         ) ,
+ TODO// STEP : 5
+initialize the docId and user:
+User? user =FirebaseAuth.instance.currentUser;
+final docId = secSnapshot.data!.docs[i].id;
+
+FOR REMOVING AND ADDING USER IN THE ARRAYLIST ADD THE FOLLOWING CODE ON THE ONPRESSED OF THE BUTTONS:
+todo// FOR REMOVING USER:
+FirebaseFirestore.instance.collection('users').doc(user!.uid).set({
+'followId': FieldValue.arrayRemove([docId], },SetOptions(merge: true),);
+todo// FOR ADDING USER:
+FirebaseFirestore.instance.collection('users').doc(user!.uid).set({
+'followId': FieldValue.arrayUnion([docId],},SetOptions(merge: true),);
+
+
+
+todo// Up to this step Now the follow and unfollow will work
+todo// when you click to follow a user will be added to their arrylist
+todo// and vice versa for removing the user
+
+NOW for sending notifications to the user that someone had follow you or unfollowed you
+ TODO// STEP : 6
+ Create a fucntions for sending notifications to the users:
+ Future<void> sendNotification(
+       {String? title, String? message, String? token}) async {
+     print("\n\n\n\n\n\n\n\n\n\n\n\n");
+     print("token is $token");
+     print("\n\n\n\n\n\n\n\n\n\n\n\n");
+
+     final data = {
+       "click_action": "FLUTTER_NOTIFICATION_CLICK",
+       "id": "1",
+       "status": "done",
+       'message': message
+     };
+
+     try {
+       http.Response r = await http.post(
+         Uri.parse('https://fcm.googleapis.com/fcm/send'),
+         headers: <String, String>{
+           'Content-Type': 'application/json',
+           'Authorization':
+
+             //THE KEY YOU WILL PROIVED FROM YOUR FIREBASE ACCOUNT
+       ============>'key=AAAACDUYpeY:APA91bEtD1UB3OAgwEPnUWFxRCi51wIZSDEJpRg-mWbhtMxN88clMQAwa8qMpjlP2JPFHMojdjZc_LarqQwybRuFvqg4iVRxUZiJTHrquz4L_P7yjvPJJR6EaX2xzxhR80g_nwMKfvnl',
+
+
+         },
+         body: jsonEncode(
+           <String, dynamic>{
+             'notification': <String, dynamic>{'body': message, 'title': title},
+             'priority': 'high',
+             'data': data,
+             "to": "$token"
+           },
+         ),
+       );
+
+       print(r.body);
+       if (r.statusCode == 200) {
+         print('DOne');
+       } else {
+         print(r.statusCode);
+       }
+     } catch (e) {
+       print('exception $e');
+     }
+   }
+
+   //AND CALL THE FUNCTIONS IN THE ONPRESSED OF THE FOLLOW AND UNFOLLOW BUTTONS
+   TextButton(
+                                                   onPressed: () {
+                                    ============> sendNotification(
+                                                       title:"${nameController.text} followed you",
+                                                       message: 'any message you wan to send',
+                                                       token: '${secSnapshot.data!.docs[i]['token']}',
+                                                        //token: token,
+                                                     );
+                                                     FirebaseFirestore.instance
+                                                         .collection('users')
+                                                         .doc(user!.uid)
+                                                         .set(
+                                                       {
+                                                         'followId':
+                                                             FieldValue.arrayUnion(
+                                                           [docId],
+                                                         )
+                                                       },
+                                                       SetOptions(merge: true),
+                                                     );
+                                                   },
+
+
+
+ TODO// STEP : 7
+ //assign tokken to each user
+
+ String? deviceToken = await FirebaseMessaging.instance.getToken();
+
+ //and update the tokken everytime the user logins to to app
+
+  updateUserToken() async {
+
+     String? deviceToken = await FirebaseMessaging.instance.getToken();
+
+     FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).set({
+       'token':deviceToken,
+
+     },SetOptions(merge: true));
+   }
+   //call the tokken in initstate:
+
+   void initState() {
+       // TODO: implement initState
+       super.initState();
+     =======>  updateUserToken();
+
+      //for reciving forground notifications
+       FirebaseMessaging.instance.getInitialMessage();
+       FirebaseMessaging.onMessage.listen((message) {
+         if (message.notification != null) {
+           print(message.notification!.title);
+           print(message.notification!.body);
+         }
+         LocalNotificationService.display(message);
+       });
+
+     }
